@@ -1,0 +1,54 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/alpine319"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus = 1
+    vb.customize ["modifyvm", :id, "--groups", "/K3sCluster"]
+  end
+
+  # K3s Server
+  config.vm.define "ljurdantS" do |server|
+    server.vm.hostname = "ljurdantS"
+    server.vm.network "private_network", ip: "192.168.56.110"
+    
+    server.vm.provision "shell", inline: <<-SHELL
+      apk add --no-cache curl iptables ip6tables
+      rc-update add iptables boot
+      rc-service iptables start
+
+      
+      curl -sfL https://get.k3s.io | sh -s - server \
+        --node-ip=192.168.56.110 \
+        --flannel-iface=eth1 \
+        --write-kubeconfig-mode=644 \
+        --disable=traefik \
+        --disable=servicelb
+    
+      sleep 30
+      cat /var/lib/rancher/k3s/server/node-token > /tmp/node-token
+      chmod 644 /tmp/node-token
+    SHELL
+  end
+
+  # K3s Agent
+  config.vm.define "ljurdantSW" do |worker|
+    worker.vm.hostname = "ljurdantSW"
+    worker.vm.network "private_network", ip: "192.168.56.111"
+    
+    worker.vm.provision "shell", inline: <<-SHELL
+      apk add --no-cache curl sshpass
+      
+      sleep 30
+      sshpass -p 'vagrant' scp -o StrictHostKeyChecking=no \
+        vagrant@192.168.56.110:/tmp/node-token /tmp/node-token
+      
+      NODE_TOKEN=$(cat /tmp/node-token)
+      curl -sfL https://get.k3s.io | K3S_URL=https://192.168.56.110:6443 \
+        K3S_TOKEN=$NODE_TOKEN sh -s - agent --node-ip=192.168.56.111 --flannel-iface=eth1
+    SHELL
+  end
+end

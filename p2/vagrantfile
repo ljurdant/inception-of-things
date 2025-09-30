@@ -1,0 +1,34 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/alpine319"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "1024"
+    vb.cpus = 1
+  end
+
+  config.vm.define "ljurdantS" do |server|
+    server.vm.hostname = "ljurdantS"
+    server.vm.network "private_network", ip: "192.168.56.110"
+    server.vm.synced_folder ".", "/vagrant"
+
+    
+    server.vm.provision "shell", inline: <<-SHELL
+      apk add --no-cache curl iptables ip6tables
+      
+      curl -sfL https://get.k3s.io | sh -s - server \
+        --node-ip=192.168.56.110 \
+        --flannel-iface=eth1 \
+        --write-kubeconfig-mode=644
+      
+      sleep 30
+      if [ -f /vagrant/apps.yaml ]; then
+        k3s kubectl apply -f /vagrant/apps.yaml
+      else
+        echo "Warning: /vagrant/apps.yaml not found"
+      fi
+    SHELL
+  end
+end

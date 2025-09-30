@@ -1,0 +1,229 @@
+# ConfigMap for app-one landing page
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-one-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>app-one</title>
+        <style>
+            body { 
+                background-color: lightblue;
+                color: black;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>app-one</h1>
+    </body>
+    </html>
+---
+# ConfigMap for app-two landing page
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-two-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>app-two</title>
+        <style>
+            body { background-color: lightcoral; }
+        </style>
+    </head>
+    <body>
+        <h1>app-two</h1>
+    </body>
+    </html>
+---
+# ConfigMap for app-three landing page
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-three-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>app-three</title>
+        <style>
+            body { background-color: lightgreen; }
+        </style>
+    </head>
+    <body>
+        <h1>app-three</h1>
+    </body>
+    </html>
+---
+# app-one
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-one
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-one
+  template:
+    metadata:
+      labels:
+        app: app-one
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: app-one-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-one-service
+  namespace: default
+spec:
+  selector:
+    app: app-one
+  ports:
+  - port: 80
+    targetPort: 80
+---
+# app-two
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-two
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: app-two
+  template:
+    metadata:
+      labels:
+        app: app-two
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: app-two-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-two-service
+  namespace: default
+spec:
+  selector:
+    app: app-two
+  ports:
+  - port: 80
+    targetPort: 80
+---
+# app-three
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-three
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-three
+  template:
+    metadata:
+      labels:
+        app: app-three
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: app-three-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-three-service
+  namespace: default
+spec:
+  selector:
+    app: app-three
+  ports:
+  - port: 80
+    targetPort: 80
+---
+# Ingress - Routes traffic based on Host header
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web  # Point d'entrée pour Traefik
+    traefik.ingress.kubernetes.io/rule-type: Path          # Type de règle pour un chemin exact
+spec:
+  rules:
+    - host: app1.com
+      http:
+        paths:
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: app-one-service
+                port:
+                  number: 80
+    - host: app2.com
+      http:
+        paths:
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: app-two-service
+                port:
+                  number: 80
+    # Redirection par défaut
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app-three-service
+                port:
+                  number: 80
