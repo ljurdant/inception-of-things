@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "generic/alpine319"
+  config.vm.box = "bento/debian-13"
 
   config.vm.provider "virtualbox" do |vb|
     vb.memory = "1024"
@@ -16,11 +16,11 @@ Vagrant.configure("2") do |config|
     server.vm.network "private_network", ip: "192.168.56.110"
     
     server.vm.provision "shell", inline: <<-SHELL
-      apk add --no-cache curl iptables ip6tables
-      rc-update add iptables boot
-      rc-service iptables start
+      apt-get update
+      apt-get install -y curl net-tools
 
-      
+      echo 'export PATH=$PATH:/usr/sbin' >> /home/vagrant/.bashrc
+
       curl -sfL https://get.k3s.io | sh -s - server \
         --node-ip=192.168.56.110 \
         --flannel-iface=eth1 \
@@ -40,7 +40,10 @@ Vagrant.configure("2") do |config|
     worker.vm.network "private_network", ip: "192.168.56.111"
     
     worker.vm.provision "shell", inline: <<-SHELL
-      apk add --no-cache curl sshpass
+      apt-get update
+      apt-get install -y curl sshpass net-tools
+
+      echo 'export PATH=$PATH:/usr/sbin' >> /home/vagrant/.bashrc
       
       sleep 30
       sshpass -p 'vagrant' scp -o StrictHostKeyChecking=no \
